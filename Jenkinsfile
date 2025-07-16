@@ -29,7 +29,7 @@ pipeline {
 
         stage("Git: Code Checkout") {
             steps {
-                git branch: 'main', url: 'https://github.com/LondheShubham153/Wanderlust-Mega-Project.git'
+                git branch: 'main', url: 'https://github.com/ram-nivas234/Wanderlust-Mega-Project.git'
             }
         }
 
