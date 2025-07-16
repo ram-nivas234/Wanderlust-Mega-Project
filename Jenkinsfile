@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        SONAR_HOME = tool "Sonar"
-    }
-
     parameters {
         string(name: 'FRONTEND_DOCKER_TAG', defaultValue: '', description: 'Frontend Docker tag')
         string(name: 'BACKEND_DOCKER_TAG', defaultValue: '', description: 'Backend Docker tag')
@@ -47,8 +43,14 @@ pipeline {
 
         stage("SonarQube: Code Analysis") {
             steps {
-                withSonarQubeEnv('Sonar') {
-                    sh "${SONAR_HOME}/bin/sonar-scanner -Dsonar.projectKey=wanderlust -Dsonar.sources=. -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_AUTH_TOKEN"
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        sonar-scanner \
+                        -Dsonar.projectKey=wanderlust \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_AUTH_TOKEN
+                    '''
                 }
             }
         }
@@ -85,20 +87,24 @@ pipeline {
             steps {
                 script {
                     dir('backend') {
-                        sh "docker build -t trainwithshubham/wanderlust-backend-beta:${params.BACKEND_DOCKER_TAG} ."
+                        sh "docker build -t ramnivas23/wanderlust-backend-beta:${params.BACKEND_DOCKER_TAG} ."
                     }
                     dir('frontend') {
-                        sh "docker build -t trainwithshubham/wanderlust-frontend-beta:${params.FRONTEND_DOCKER_TAG} ."
+                        sh "docker build -t ramnivas23/wanderlust-frontend-beta:${params.FRONTEND_DOCKER_TAG} ."
                     }
                 }
             }
         }
 
-        stage("Docker: Push Images") {
+        stage('Docker: Login & Push') {
             steps {
-                script {
-                    sh "docker push trainwithshubham/wanderlust-backend-beta:${params.BACKEND_DOCKER_TAG}"
-                    sh "docker push trainwithshubham/wanderlust-frontend-beta:${params.FRONTEND_DOCKER_TAG}"
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        echo "Pushing Docker images to Docker Hub"
+                        docker push ramnivas23/wanderlust-backend-beta:${params.BACKEND_DOCKER_TAG}
+                        docker push ramnivas23/wanderlust-frontend-beta:${params.FRONTEND_DOCKER_TAG}
+                    """
                 }
             }
         }
@@ -107,10 +113,10 @@ pipeline {
     post {
         success {
             archiveArtifacts artifacts: '*.xml', followSymlinks: false
-            build job: 'Wanderlust-CD', parameters: [
-                string(name: 'FRONTEND_DOCKER_TAG', value: params.FRONTEND_DOCKER_TAG),
-                string(name: 'BACKEND_DOCKER_TAG', value: params.BACKEND_DOCKER_TAG)
-            ]
+            echo "Pipeline succeeded!"
+        }
+        failure {
+            echo "Pipeline failed. Please check the logs."
         }
     }
 }
